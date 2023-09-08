@@ -20,12 +20,21 @@ class TestRiskAnalyzer(unittest.TestCase):
         self.analyzer = RiskAnalyzer(sample_df)
     
     def test_risk_score_calculation(self):
-        result = self.analyzer._compute_issue_risk_score()
-        #Assertions to compare the result's risk score with an expected value
-        self.assertAlmostEqual(result.iloc[0]['final_score'], 20.34, places=1)  
+        result = self.analyzer.compute_individual_risk_score()
+    # Checking if the top priority request is for Issue A and has the soonest contract end date
+        self.assertEqual(result.iloc[0]['issue_type'], 'Issue A')
+        self.assertEqual(result.iloc[0]['contract_end'], pd.Timestamp('2023-05-01'))
     
-    def test_rank_issues(self):
-        result = self.analyzer.rank_issues()
-        self.assertEqual(result.iloc[0]['issue_type'], 'Issue A')  
+    # Checking if the final_score of the top priority request matches the expected value
+    
+        expected_final_score_for_issue_a = 20.80 
+        self.assertAlmostEqual(result.iloc[0]['final_score'], expected_final_score_for_issue_a, places=1)
+
+   
+    def test_individual_risk_score(self):
+        result = self.analyzer.compute_individual_risk_score()
+        self.assertEqual(result.iloc[0]['issue_type'], 'Issue A')
+        self.assertEqual(result.iloc[0]['contract_end'], pd.Timestamp('2023-05-01'))
+
     
 

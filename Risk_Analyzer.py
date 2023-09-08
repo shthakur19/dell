@@ -12,37 +12,40 @@ class RiskAnalyzer:
             'warranty_priority': 4  # Weight for warranty ending soon
         }
     
-    def _compute_issue_risk_score(self):
-        # Aggregating necessary metrics by issue_type
+    def compute_individual_risk_score(self):
+        #Computing general risk score for each issue_type
         issue_aggregates = self.data.groupby('issue_type').agg({
-            'repeat_ct': 'sum',
-            'contact_manager_flg': 'sum',
-            'parts_ct': 'sum',
-            'repeat_parts_ct': 'sum',
-            'agent_tenure_indays': 'mean',
-            'contract_end': 'mean'
-        }).reset_index()
-        
-        # Calculate a risk score based on various factors
+        'repeat_ct': 'sum',
+        'contact_manager_flg': 'sum',
+        'parts_ct': 'sum',
+        'repeat_parts_ct': 'sum',
+        'agent_tenure_indays': 'mean'
+         }).reset_index()
+    
         issue_aggregates['risk_score'] = (
-            issue_aggregates['repeat_ct'] * self.weights['issue_freq'] +
-            issue_aggregates['contact_manager_flg'] * self.weights['manager_involvement'] +
-            issue_aggregates['parts_ct'] * self.weights['parts_sent'] +
-            issue_aggregates['repeat_parts_ct'] * self.weights['repeat_parts_sent'] +
-            issue_aggregates['agent_tenure_indays'] * self.weights['agent_tenure']
-        )
+        issue_aggregates['repeat_ct'] * self.weights['issue_freq'] +
+        issue_aggregates['contact_manager_flg'] * self.weights['manager_involvement'] +
+        issue_aggregates['parts_ct'] * self.weights['parts_sent'] +
+        issue_aggregates['repeat_parts_ct'] * self.weights['repeat_parts_sent'] +
+        issue_aggregates['agent_tenure_indays'] * self.weights['agent_tenure'])
+    
+        # Merging this general risk score with the main dataframe on issue_type
+        merged_data = self.data.merge(issue_aggregates[['issue_type', 'risk_score']], on='issue_type', how='left')
+    
+        # Computing warranty priority score for each request and combining  with the general risk score
+        min_date = merged_data['contract_end'].min()
+        max_date = merged_data['contract_end'].max()
+        merged_data['warranty_priority'] = (max_date - merged_data['contract_end']).dt.days / (max_date - min_date).days
+        merged_data['final_score'] = merged_data['risk_score'] + merged_data['warranty_priority'] * self.weights['warranty_priority']
         
-        # Normalize contract_end dates to provide a priority score
-        min_date = issue_aggregates['contract_end'].min()
-        max_date = issue_aggregates['contract_end'].max()
-        issue_aggregates['warranty_priority'] = (max_date - issue_aggregates['contract_end']).dt.days / (max_date - min_date).days
+        #Sorting the dataframe based on the combined risk score
+        prioritized_data = merged_data.sort_values('final_score', ascending=False)
         
-        # Combining the risk score and warranty priority
-        issue_aggregates['final_score'] = issue_aggregates['risk_score'] + issue_aggregates['warranty_priority'] * self.weights['warranty_priority']
-        
-        return issue_aggregates[['issue_type', 'final_score']].sort_values('final_score', ascending=False)
+        return prioritized_data
+
+    
     
     def rank_issues(self):
-        return self._compute_issue_risk_score()
+        return self.compute_individual_risk_score()
 
 
